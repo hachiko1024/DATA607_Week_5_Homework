@@ -1,0 +1,118 @@
+---
+title: "Data607_Homework5"
+author: "Josef Waples"
+date: "9/26/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(dplyr)
+library(tidyr)
+library(zoo)     
+library(plyr)
+library(ggplot2)
+
+
+c1 <- c("", "ALASKA", "", "", "AM WEST", "")
+c2 <- c("", "on time", "delayed", "", "on time", "delayed")
+c3 <- c("Los Angeles", "497", "62", "", "694", "117")
+c4 <- c("Phoenix", "221", "12", "", "4,840", "415")
+c5 <- c("San Diego", "212", "20", "", "383", "65")
+c6 <- c("San Francisco", "503", "102", "", "320", "129")
+c7 <- c("Seattle", "1,841", "305", "", "201", "61")
+
+df <- data.frame(c1,c2,c3,c4,c5,c6,c7)
+print(df)
+str(df)
+
+
+# this is kind of the starting point of our homework assignment
+
+# first make the first row the same as the second to get correct headers
+names(df) <- as.matrix(df[1, ])
+
+# now we can get rid of the second row which is redundant 
+df <- df[-1, ]
+
+
+str(df)
+# the types are incorrect
+
+df[] <- lapply(df, function(x) type.convert(as.character(x)))
+str(df)
+
+# that didn't work for Phonexi and Seattle because the commas were confusing
+# removing commas
+df$Phoenix <- as.numeric(gsub(",","",df$Phoenix))
+df$Seattle <- as.numeric(gsub(",","",df$Seattle))
+
+str(df)
+
+# let's get rid of the blank 3rd row
+
+df <- df[-3,]
+
+colnames(df) <- c("Airline", "Status", "Los Angeles", "Phoenix", "San Diego", "San Francisco", "Seattle")
+
+# need to replace blank cells iwth NA
+df <- apply(df, 2, function(x) gsub("^$|^ $", NA, x))
+
+# I have to change the class from a matrix to a dataframe
+class(df)
+
+df <- as.data.frame(df)
+
+# now we can use na.locf from zoo to change the NA to the prevous value
+df <- df %>%
+  group_by(Airline) %>% 
+  mutate(Airline = na.locf(Airline, na.rm = F))   
+
+
+# now we need to make the dataframe long instead of wide
+
+
+df <- gather(df, 'City', 'Number_of_Flights', 3:7)
+
+str(df)
+# need to make Number_of_Flights numeric
+
+df$Number_of_Flights <- as.numeric(df$Number_of_Flights)
+
+alaska_on_time <- df %>%
+  filter(Airline == "ALASKA", Status == "on time") %>%
+  summarize(total = sum(Number_of_Flights))
+
+colnames(alaska_on_time) <- "Alaska on time"
+
+alaska_delayed <- df %>%
+  filter(Airline == "ALASKA", Status != "on time") %>%
+  summarize(total = sum(Number_of_Flights))
+
+colnames(alaska_delayed) <- "Alaska delayed"
+
+am_west_on_time <- df %>%
+  filter(Airline == "AM WEST", Status == "on time") %>%
+  summarize(total = sum(Number_of_Flights))
+
+colnames(am_west_on_time) <- "AM West on time"
+
+am_west_delayed <- df %>%
+  filter(Airline == "AM WEST", Status != "on time") %>%
+  summarize(total = sum(Number_of_Flights))
+
+colnames(am_west_delayed) <- "AM West delayed"
+
+
+df_reporting <- cbind(alaska_on_time, alaska_delayed, am_west_on_time, am_west_delayed)
+
+df_reporting <- gather(df_reporting, 'group', 'total', 1:4)
+
+ggplot(df_reporting, aes(x = group, y = total)) + 
+  geom_point(size = 5) +
+  labs(title = "Airline Comparison", subtitle = "Number on time, number delayed")
+
+# AM West looks like the better airline because the number of delayed flights is relatively similar to Alaska but the on time flights are much higher
+
+```
